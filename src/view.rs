@@ -102,7 +102,7 @@ impl eframe::App for EncoderApp {
                 .map(|profile| (selected_profile.clone(), profile));
 
             if let Some((name, profile)) = selected_profile_data {
-                profile_details(ui, &name, &profile);
+                profile_details(ui, &name, &profile, &self.controller.video);
                 ui.add_space(16.0);
             }
 
@@ -120,7 +120,7 @@ impl eframe::App for EncoderApp {
                 match self.active_tab {
                     SettingsTab::Files => views::files::show(ui, model, files),
                     SettingsTab::Video => views::video::show(ui, video),
-                    SettingsTab::Audio => views::audio::show(ui, audio),
+                    SettingsTab::Audio => views::audio::show(ui, model, audio),
                     SettingsTab::Subtitles => views::subtitles::show(ui, subtitles),
                 }
             } else {
@@ -139,17 +139,20 @@ fn tab_button(ui: &mut egui::Ui, active_tab: &mut SettingsTab, tab: SettingsTab,
     }
 }
 
-fn profile_details(ui: &mut egui::Ui, name: &str, profile: &Profile) {
+fn profile_details(
+    ui: &mut egui::Ui,
+    name: &str,
+    profile: &Profile,
+    video_controller: &crate::controllers::video::VideoController,
+) {
     ui.group(|ui| {
         ui.horizontal(|ui| {
             ui.heading("FFmpeg command");
             ui.label(RichText::new(format!("Preset: {name}")).weak());
         });
-        ui.label(
-            RichText::new("This read-only preview comes directly from the selected preset.").weak(),
-        );
+        ui.label(RichText::new("Updates as settings are adjusted.").weak());
 
-        let mut command_preview = profile.ffmpeg_args.join(" ");
+        let mut command_preview = video_controller.effective_ffmpeg_args(profile).join(" ");
         ui.add(
             egui::TextEdit::multiline(&mut command_preview)
                 .code_editor()

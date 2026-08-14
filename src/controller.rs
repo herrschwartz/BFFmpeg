@@ -19,9 +19,9 @@ impl AppController {
         let mut controller = Self {
             model: None,
             status_message: String::new(),
-            files: FilesController,
-            video: VideoController,
-            audio: AudioController,
+            files: FilesController::default(),
+            video: VideoController::default(),
+            audio: AudioController::default(),
             subtitles: SubtitlesController,
         };
         controller.reload_config();
@@ -43,6 +43,7 @@ impl AppController {
                 }
                 self.status_message = format!("Loaded {}", model.config_path.display());
                 self.model = Some(model);
+                self.sync_video_settings();
             }
             Err(error) => {
                 self.status_message = error;
@@ -55,6 +56,7 @@ impl AppController {
         if let Some(model) = &mut self.model {
             model.selected_profile = name;
         }
+        self.sync_video_settings();
     }
 
     pub fn selected_profile(&self) -> Option<&Profile> {
@@ -76,6 +78,21 @@ impl AppController {
         if let Some(model) = &mut self.model {
             model.set_current_folder(folder);
             self.status_message = format!("Opened {}", model.current_folder.display());
+        }
+
+        if let Some(model) = &self.model {
+            self.audio.refresh_for_folder(model);
+        }
+    }
+
+    fn sync_video_settings(&mut self) {
+        let selected_profile = self
+            .model
+            .as_ref()
+            .and_then(|model| model.config.profiles.get(&model.selected_profile).cloned());
+
+        if let Some(profile) = selected_profile {
+            self.video.load_profile(&profile);
         }
     }
 }

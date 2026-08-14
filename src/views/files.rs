@@ -1,8 +1,11 @@
 use crate::controllers::files::FilesController;
-use crate::model::{AppModel, OutputContainer};
+use crate::model::{AppModel, OutputContainer, VideoBitrate};
 use eframe::egui::{self, RichText};
+use std::time::Duration;
 
 pub fn show(ui: &mut egui::Ui, model: &mut AppModel, controller: &mut FilesController) {
+    controller.poll_media_info(model);
+
     ui.heading("Files");
     ui.label(
         RichText::new(format!(
@@ -77,6 +80,10 @@ pub fn show(ui: &mut egui::Ui, model: &mut AppModel, controller: &mut FilesContr
         controller.select_video_file(model, index);
     }
 
+    if model.media_info_loading {
+        ui.ctx().request_repaint_after(Duration::from_millis(50));
+    }
+
     show_selected_file_details(ui, model);
 }
 
@@ -98,14 +105,24 @@ fn show_selected_file_details(ui: &mut egui::Ui, model: &AppModel) {
             return;
         }
 
-        let Some(info) = &model.selected_media_info else {
+        if model.media_info_loading {
             ui.label("Reading media information…");
+            return;
+        }
+
+        let Some(info) = &model.selected_media_info else {
+            ui.label("Media information is unavailable.");
             return;
         };
 
         info_row(ui, "Duration", info.duration_seconds.map(format_duration));
         info_row(ui, "Video codec", info.video_codec.clone());
-        info_row(ui, "Video bitrate", info.video_bitrate.map(format_bitrate));
+        info_row(ui, "Dynamic range", info.dynamic_range.clone());
+        info_row(
+            ui,
+            "Video bitrate",
+            info.video_bitrate.as_ref().map(format_video_bitrate),
+        );
         ui.add_space(6.0);
         ui.strong("Audio streams");
 
@@ -117,7 +134,20 @@ fn show_selected_file_details(ui: &mut egui::Ui, model: &AppModel) {
                     .bitrate
                     .map(format_bitrate)
                     .unwrap_or_else(|| "bitrate unavailable".to_owned());
-                ui.label(format!("#{}  {}  ({bitrate})", stream.index, stream.codec));
+                let channels = stream
+                    .channels
+                    .map(|channels| format!("{channels} channels"))
+                    .unwrap_or_else(|| "channels unavailable".to_owned());
+                ui.label(format!(
+                    "#{}{}  {}  ({bitrate}, {channels})",
+                    stream.index,
+                    stream
+                        .language
+                        .as_deref()
+                        .map(|language| format!(" ({language})"))
+                        .unwrap_or_default(),
+                    stream.codec,
+                ));
             }
         }
     });
@@ -148,6 +178,15 @@ fn format_bitrate(bits_per_second: u64) -> String {
         format!("{:.2} Mbps", bits_per_second as f64 / 1_000_000.0)
     } else {
         format!("{:.0} kbps", bits_per_second as f64 / 1_000.0)
+    }
+}
+
+fn format_video_bitrate(bitrate: &VideoBitrate) -> String {
+    let bitrate_label = format_bitrate(bitrate.bits_per_second);
+    if bitrate.is_estimated {
+        format!("{bitrate_label} (estimated from container bitrate)")
+    } else {
+        bitrate_label
     }
 }
 

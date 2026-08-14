@@ -48,15 +48,24 @@ pub struct VideoFile {
 pub struct MediaInfo {
     pub duration_seconds: Option<f64>,
     pub video_codec: Option<String>,
-    pub video_bitrate: Option<u64>,
+    pub dynamic_range: Option<String>,
+    pub video_bitrate: Option<VideoBitrate>,
     pub audio_streams: Vec<AudioStreamInfo>,
+}
+
+#[derive(Clone, Debug)]
+pub struct VideoBitrate {
+    pub bits_per_second: u64,
+    pub is_estimated: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct AudioStreamInfo {
     pub index: usize,
+    pub language: Option<String>,
     pub codec: String,
     pub bitrate: Option<u64>,
+    pub channels: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -70,6 +79,7 @@ pub struct AppModel {
     pub selected_video_index: Option<usize>,
     pub selected_media_info: Option<MediaInfo>,
     pub media_info_error: Option<String>,
+    pub media_info_loading: bool,
     pub output_directory: String,
     pub output_container: OutputContainer,
 }
@@ -104,6 +114,7 @@ impl AppModel {
             selected_video_index: None,
             selected_media_info: None,
             media_info_error: None,
+            media_info_loading: false,
             output_container: OutputContainer::Mkv,
         })
     }
@@ -117,6 +128,7 @@ impl AppModel {
         self.selected_video_index = None;
         self.selected_media_info = None;
         self.media_info_error = None;
+        self.media_info_loading = false;
     }
 }
 

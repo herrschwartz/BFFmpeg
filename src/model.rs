@@ -48,9 +48,18 @@ pub struct VideoFile {
 pub struct MediaInfo {
     pub duration_seconds: Option<f64>,
     pub video_codec: Option<String>,
+    pub video_dimensions: Option<VideoDimensions>,
     pub dynamic_range: Option<String>,
     pub video_bitrate: Option<VideoBitrate>,
     pub audio_streams: Vec<AudioStreamInfo>,
+    pub subtitle_streams: Vec<SubtitleStreamInfo>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct VideoDimensions {
+    pub width: u32,
+    pub height: u32,
+    pub display_aspect_ratio: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -66,6 +75,14 @@ pub struct AudioStreamInfo {
     pub codec: String,
     pub bitrate: Option<u64>,
     pub channels: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SubtitleStreamInfo {
+    pub index: usize,
+    pub language: Option<String>,
+    pub codec: String,
+    pub title: Option<String>,
 }
 
 #[derive(Debug)]

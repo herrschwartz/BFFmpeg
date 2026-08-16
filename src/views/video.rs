@@ -4,8 +4,8 @@ use eframe::egui::{self, RichText};
 pub fn show(ui: &mut egui::Ui, controller: &mut VideoController) {
     ui.heading("Video");
 
-    let Some(settings) = controller.h265_settings_mut() else {
-        ui.label("The selected preset does not use a supported H.265 encoder yet.");
+    let Some(settings) = controller.settings_mut() else {
+        ui.label("The selected preset does not use a supported H.264 or H.265 encoder yet.");
         return;
     };
 
@@ -43,5 +43,24 @@ pub fn show(ui: &mut egui::Ui, controller: &mut VideoController) {
             ui.label(RichText::new(settings.speed_label()).strong());
             ui.label(RichText::new("Slower / higher quality").weak());
         });
+
+        if settings.supports_tunes() {
+            ui.add_space(12.0);
+            let tune_options = settings.tune_options();
+            ui.horizontal(|ui| {
+                ui.label("Encoder tune:");
+                egui::ComboBox::from_id_salt("video_encoder_tune")
+                    .selected_text(settings.tune.label())
+                    .show_ui(ui, |ui| {
+                        for &tune in tune_options {
+                            ui.selectable_value(&mut settings.tune, tune, tune.label());
+                        }
+                    });
+            });
+            ui.label(
+                RichText::new("Tunes optimize the encoder for a type of source or delivery goal.")
+                    .weak(),
+            );
+        }
     });
 }

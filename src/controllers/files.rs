@@ -1,4 +1,6 @@
-use crate::model::{AppModel, AudioStreamInfo, MediaInfo, VideoBitrate};
+use crate::model::{
+    AppModel, AudioStreamInfo, MediaInfo, SubtitleStreamInfo, VideoBitrate, VideoDimensions,
+};
 use rfd::FileDialog;
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -17,6 +19,19 @@ impl FilesController {
         FileDialog::new()
             .set_directory(current_folder)
             .pick_folder()
+    }
+
+    pub fn pick_video_file(&self, current_folder: &Path) -> Option<PathBuf> {
+        FileDialog::new()
+            .set_directory(current_folder)
+            .add_filter(
+                "Video files",
+                &[
+                    "avi", "flv", "m2ts", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ts", "webm",
+                    "wmv",
+                ],
+            )
+            .pick_file()
     }
 
     pub fn select_video_file(&mut self, model: &mut AppModel, index: usize) {
@@ -73,7 +88,7 @@ fn probe_media_file(path: &Path) -> Result<MediaInfo, String> {
             "-v",
             "error",
             "-show_entries",
-            "format=duration,bit_rate:stream=index,codec_type,codec_name,bit_rate,channels,color_transfer,color_primaries:stream_tags",
+            "format=duration,bit_rate:stream=index,codec_type,codec_name,bit_rate,channels,width,height,sample_aspect_ratio,color_transfer,color_primaries:stream_tags",
             "-of",
             "json",
         ])
@@ -116,6 +131,24 @@ fn probe_media_file(path: &Path) -> Result<MediaInfo, String> {
             channels: stream.channels,
         })
         .collect::<Vec<_>>();
+    let subtitle_streams = result
+        .streams
+        .iter()
+        .filter(|stream| stream.codec_type.as_deref() == Some("subtitle"))
+        .map(|stream| SubtitleStreamInfo {
+            index: stream.index.unwrap_or_default(),
+            language: stream_tag_value(&stream.tags, &["language"])
+                .map(str::to_owned)
+                .filter(|language| !language.is_empty()),
+            codec: stream
+                .codec_name
+                .clone()
+                .unwrap_or_else(|| "Unknown codec".to_owned()),
+            title: stream_tag_value(&stream.tags, &["title"])
+                .map(str::to_owned)
+                .filter(|title| !title.is_empty()),
+        })
+        .collect::<Vec<_>>();
 
     Ok(MediaInfo {
         duration_seconds: result
@@ -124,6 +157,7 @@ fn probe_media_file(path: &Path) -> Result<MediaInfo, String> {
             .as_deref()
             .and_then(|value| value.parse().ok()),
         video_codec: video_stream.and_then(|stream| stream.codec_name.clone()),
+        video_dimensions: video_stream.and_then(video_dimensions),
         dynamic_range: video_stream.map(dynamic_range),
         video_bitrate: resolve_video_bitrate(
             video_stream.and_then(stream_video_bitrate),
@@ -131,11 +165,22 @@ fn probe_media_file(path: &Path) -> Result<MediaInfo, String> {
             &audio_streams,
         ),
         audio_streams,
+        subtitle_streams,
     })
 }
 
 pub(crate) fn probe_audio_streams(path: &Path) -> Result<Vec<AudioStreamInfo>, String> {
     probe_media_file(path).map(|media_info| media_info.audio_streams)
+}
+
+pub(crate) fn probe_subtitle_streams(path: &Path) -> Result<Vec<SubtitleStreamInfo>, String> {
+    probe_media_file(path).map(|media_info| media_info.subtitle_streams)
+}
+
+pub(crate) fn probe_video_dimensions(path: &Path) -> Result<VideoDimensions, String> {
+    probe_media_file(path)?.video_dimensions.ok_or_else(|| {
+        "ffprobe did not find a video stream with usable dimensions in this file.".to_owned()
+    })
 }
 
 fn ffprobe_command() -> Command {
@@ -210,6 +255,36 @@ fn dynamic_range(stream: &ProbeStream) -> String {
     }
 }
 
+fn video_dimensions(stream: &ProbeStream) -> Option<VideoDimensions> {
+    let width = stream.width?;
+    let height = stream.height?;
+    (width > 0 && height > 0).then(|| VideoDimensions {
+        width,
+        height,
+        display_aspect_ratio: width as f64 / height as f64 * sample_aspect_ratio(stream),
+    })
+}
+
+fn sample_aspect_ratio(stream: &ProbeStream) -> f64 {
+    let Some(value) = stream.sample_aspect_ratio.as_deref() else {
+        return 1.0;
+    };
+    let Some((numerator, denominator)) = value.split_once(':') else {
+        return 1.0;
+    };
+    let Some(numerator) = numerator.parse::<f64>().ok() else {
+        return 1.0;
+    };
+    let Some(denominator) = denominator.parse::<f64>().ok() else {
+        return 1.0;
+    };
+    if numerator > 0.0 && denominator > 0.0 {
+        numerator / denominator
+    } else {
+        1.0
+    }
+}
+
 fn stream_tag_value<'a>(tags: &'a BTreeMap<String, String>, keys: &[&str]) -> Option<&'a str> {
     tags.iter()
         .find(|(key, _)| {
@@ -260,6 +335,9 @@ struct ProbeStream {
     codec_name: Option<String>,
     bit_rate: Option<String>,
     channels: Option<u32>,
+    width: Option<u32>,
+    height: Option<u32>,
+    sample_aspect_ratio: Option<String>,
     color_transfer: Option<String>,
     color_primaries: Option<String>,
     #[serde(default)]
@@ -322,6 +400,9 @@ mod tests {
             codec_name: Some("h264".to_owned()),
             bit_rate: None,
             channels: None,
+            width: None,
+            height: None,
+            sample_aspect_ratio: None,
             color_transfer: None,
             color_primaries: None,
             tags: BTreeMap::from([("BPS-eng".to_owned(), "10509649".to_owned())]),
@@ -341,6 +422,9 @@ mod tests {
             codec_name: Some("h264".to_owned()),
             bit_rate: None,
             channels: None,
+            width: None,
+            height: None,
+            sample_aspect_ratio: None,
             color_transfer: None,
             color_primaries: None,
             tags: BTreeMap::from([

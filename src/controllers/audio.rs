@@ -68,10 +68,10 @@ impl AudioCodec {
 
     pub fn bitrate_options(self) -> &'static [u32] {
         match self {
-            Self::Aac => &[128, 160, 192, 256, 320, 384, 512],
-            Self::Eac3 => &[192, 256, 384, 448, 512, 640, 768, 1_024],
-            Self::Ac3 => &[192, 256, 384, 448, 512, 640],
-            Self::Opus => &[96, 128, 160, 192, 256, 320, 384, 512],
+            Self::Aac => &[112, 128, 160, 192, 224, 256, 320, 384, 512],
+            Self::Eac3 => &[192, 256, 384, 448, 512, 576, 640, 768, 1_024],
+            Self::Ac3 => &[192, 256, 384, 448, 512, 576, 640],
+            Self::Opus => &[80, 96, 128, 160, 192, 256, 320, 384, 512],
             Self::Passthrough | Self::Flac => &[],
         }
     }
@@ -84,10 +84,22 @@ impl AudioCodec {
             Self::Passthrough | Self::Flac => 0,
         }
     }
+
+    pub fn ffmpeg_encoder(self) -> &'static str {
+        match self {
+            Self::Passthrough => "copy",
+            Self::Aac => "aac",
+            Self::Eac3 => "eac3",
+            Self::Ac3 => "ac3",
+            Self::Opus => "libopus",
+            Self::Flac => "flac",
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct AudioTrackSettings {
+    pub selected: bool,
     pub codec: AudioCodec,
     pub bitrate_kbps: u32,
 }
@@ -95,6 +107,7 @@ pub struct AudioTrackSettings {
 impl Default for AudioTrackSettings {
     fn default() -> Self {
         Self {
+            selected: true,
             codec: AudioCodec::Passthrough,
             bitrate_kbps: 0,
         }
@@ -183,6 +196,36 @@ impl AudioController {
         self.track_settings.get_mut(index)
     }
 
+    pub fn apply_ffmpeg_args(&self, mut arguments: Vec<String>) -> Vec<String> {
+        let AudioScanState::Complete(result) = &self.scan_state else {
+            return arguments;
+        };
+        if self.passthrough_all_audio || !result.mismatches.is_empty() {
+            return arguments;
+        }
+
+        strip_audio_output_arguments(&mut arguments);
+        arguments.push("-map".to_owned());
+        arguments.push("-0:a".to_owned());
+        let mut output_track_index = 0;
+        for (source_track_index, settings) in self.track_settings.iter().enumerate() {
+            if !settings.selected {
+                continue;
+            }
+
+            arguments.push("-map".to_owned());
+            arguments.push(format!("0:a:{source_track_index}?"));
+            arguments.push(format!("-c:a:{output_track_index}"));
+            arguments.push(settings.codec.ffmpeg_encoder().to_owned());
+            if settings.codec.uses_bitrate() {
+                arguments.push(format!("-b:a:{output_track_index}"));
+                arguments.push(format!("{}k", settings.bitrate_kbps));
+            }
+            output_track_index += 1;
+        }
+        arguments
+    }
+
     fn start_audio_scan(&mut self, video_files: &[VideoFile]) {
         let files = video_files.to_vec();
         let total = files.len();
@@ -237,10 +280,65 @@ impl AudioController {
     }
 }
 
+fn strip_audio_output_arguments(arguments: &mut Vec<String>) {
+    let mut index = 0;
+    while index < arguments.len() {
+        if arguments[index].starts_with("-c:a") || arguments[index].starts_with("-b:a") {
+            arguments.drain(index..(index + 2).min(arguments.len()));
+        } else {
+            index += 1;
+        }
+    }
+}
+
 fn matching_stream_codecs(first: &[AudioStreamInfo], second: &[AudioStreamInfo]) -> bool {
     first.len() == second.len()
         && first
             .iter()
             .zip(second)
             .all(|(first, second)| first.codec.eq_ignore_ascii_case(&second.codec))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AudioCodec, AudioController, AudioScanResult, AudioScanState, AudioTrackSettings};
+
+    #[test]
+    fn excludes_unselected_audio_tracks_from_the_ffmpeg_mapping() {
+        let controller = AudioController {
+            passthrough_all_audio: false,
+            scan_state: AudioScanState::Complete(AudioScanResult {
+                total_files: 1,
+                reference_streams: Vec::new(),
+                mismatches: Vec::new(),
+            }),
+            track_settings: vec![
+                AudioTrackSettings {
+                    selected: false,
+                    codec: AudioCodec::Passthrough,
+                    bitrate_kbps: 0,
+                },
+                AudioTrackSettings {
+                    selected: true,
+                    codec: AudioCodec::Eac3,
+                    bitrate_kbps: 640,
+                },
+            ],
+            scan_receiver: None,
+        };
+
+        let arguments = controller.apply_ffmpeg_args(vec![
+            "-map".to_owned(),
+            "0".to_owned(),
+            "-c:a".to_owned(),
+            "copy".to_owned(),
+        ]);
+
+        assert_eq!(
+            arguments,
+            vec![
+                "-map", "0", "-map", "-0:a", "-map", "0:a:1?", "-c:a:0", "eac3", "-b:a:0", "640k"
+            ]
+        );
+    }
 }

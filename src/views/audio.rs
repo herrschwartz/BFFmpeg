@@ -49,45 +49,49 @@ fn show_scan_result(ui: &mut egui::Ui, controller: &mut AudioController, result:
         for (index, stream) in result.reference_streams.iter().enumerate() {
             ui.group(|ui| {
                 ui.horizontal(|ui| {
-                    ui.strong(format!("Track {}", index + 1));
+                    if let Some(settings) = controller.track_settings_mut(index) {
+                        ui.checkbox(&mut settings.selected, format!("Track {}", index + 1));
+                    }
                     ui.label(stream_identifier(stream));
                 });
                 ui.label(format_track(stream));
 
                 if let Some(settings) = controller.track_settings_mut(index) {
-                    ui.horizontal(|ui| {
-                        ui.label("Codec:");
-                        let previous_codec = settings.codec;
-                        egui::ComboBox::from_id_salt(("audio_track_codec", index))
-                            .selected_text(settings.codec.label())
-                            .show_ui(ui, |ui| {
-                                for candidate in AudioCodec::ALL {
-                                    ui.selectable_value(
-                                        &mut settings.codec,
-                                        candidate,
-                                        candidate.label(),
-                                    );
-                                }
-                            });
-
-                        if settings.codec != previous_codec {
-                            settings.bitrate_kbps = settings.codec.default_bitrate();
-                        }
-
-                        if settings.codec.uses_bitrate() {
-                            ui.label("Bitrate:");
-                            egui::ComboBox::from_id_salt(("audio_track_bitrate", index))
-                                .selected_text(format!("{} kbps", settings.bitrate_kbps))
+                    ui.add_enabled_ui(settings.selected, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Codec:");
+                            let previous_codec = settings.codec;
+                            egui::ComboBox::from_id_salt(("audio_track_codec", index))
+                                .selected_text(settings.codec.label())
                                 .show_ui(ui, |ui| {
-                                    for &bitrate in settings.codec.bitrate_options() {
+                                    for candidate in AudioCodec::ALL {
                                         ui.selectable_value(
-                                            &mut settings.bitrate_kbps,
-                                            bitrate,
-                                            format!("{bitrate} kbps"),
+                                            &mut settings.codec,
+                                            candidate,
+                                            candidate.label(),
                                         );
                                     }
                                 });
-                        }
+
+                            if settings.codec != previous_codec {
+                                settings.bitrate_kbps = settings.codec.default_bitrate();
+                            }
+
+                            if settings.codec.uses_bitrate() {
+                                ui.label("Bitrate:");
+                                egui::ComboBox::from_id_salt(("audio_track_bitrate", index))
+                                    .selected_text(format!("{} kbps", settings.bitrate_kbps))
+                                    .show_ui(ui, |ui| {
+                                        for &bitrate in settings.codec.bitrate_options() {
+                                            ui.selectable_value(
+                                                &mut settings.bitrate_kbps,
+                                                bitrate,
+                                                format!("{bitrate} kbps"),
+                                            );
+                                        }
+                                    });
+                            }
+                        });
                     });
                 }
             });

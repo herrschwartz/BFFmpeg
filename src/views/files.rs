@@ -50,9 +50,12 @@ pub fn show(ui: &mut egui::Ui, model: &mut AppModel, controller: &mut FilesContr
     }
 
     let mut newly_selected = None;
+    let row_height = ui.text_style_height(&egui::TextStyle::Body) + ui.spacing().item_spacing.y;
+    let natural_table_height = (model.video_files.len() + 1) as f32 * row_height + 8.0;
+    let table_height = natural_table_height.min(ui.available_height().max(180.0));
     egui::ScrollArea::vertical()
         .id_salt("video_files")
-        .max_height(220.0)
+        .max_height(table_height)
         .auto_shrink([false, false])
         .show(ui, |ui| {
             egui::Grid::new("video_files_grid")

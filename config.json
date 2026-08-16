@@ -69,6 +69,20 @@
                 "-c:s", "copy",
                 "-map_metadata", "0"
             ]
+        },
+        "h264 8bit Super Juicy": {
+            "ffmpeg_args": [
+                "-map", "0",
+                "-c:v", "libx264",
+                "-preset", "veryslow",
+                "-crf", "16",
+                "-tune", "film",
+                "-profile:v", "high",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "copy",
+                "-c:s", "copy",
+                "-map_metadata", "0"
+            ]
         }
     }
 }

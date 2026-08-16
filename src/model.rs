@@ -1,10 +1,10 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Config {
     #[serde(default)]
     pub default_profile: Option<String>,
@@ -12,7 +12,7 @@ pub struct Config {
     pub profiles: BTreeMap<String, Profile>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Profile {
     #[serde(default)]
     pub ffmpeg_args: Vec<String>,
@@ -33,6 +33,14 @@ impl OutputContainer {
             Self::Mkv => "MKV",
             Self::Mp4 => "MP4",
             Self::Webm => "WEBM",
+        }
+    }
+
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Mkv => "mkv",
+            Self::Mp4 => "mp4",
+            Self::Webm => "webm",
         }
     }
 }

@@ -163,6 +163,7 @@ fn probe_media_file(path: &Path) -> Result<MediaInfo, String> {
             video_stream.and_then(stream_video_bitrate),
             result.format.bit_rate.as_deref(),
             &audio_streams,
+            video_stream.is_some_and(uses_stream_bitrate_metadata),
         ),
         audio_streams,
         subtitle_streams,
@@ -201,20 +202,47 @@ fn resolve_video_bitrate(
     stream_bitrate: Option<VideoBitrate>,
     total_bitrate: Option<&str>,
     audio_streams: &[AudioStreamInfo],
+    stream_uses_metadata: bool,
 ) -> Option<VideoBitrate> {
-    if stream_bitrate.is_some() {
-        return stream_bitrate;
-    }
-
-    let total_bitrate = total_bitrate.and_then(parse_bitrate)?;
+    let total_bitrate = total_bitrate.and_then(parse_bitrate);
     let audio_bitrate = audio_streams
         .iter()
         .filter_map(|stream| stream.bitrate)
         .sum::<u64>();
-    (total_bitrate > audio_bitrate).then_some(VideoBitrate {
-        bits_per_second: total_bitrate - audio_bitrate,
-        is_estimated: true,
-    })
+    let container_estimate = total_bitrate
+        .filter(|total_bitrate| *total_bitrate > audio_bitrate)
+        .map(|total_bitrate| VideoBitrate {
+            bits_per_second: total_bitrate - audio_bitrate,
+            is_estimated: true,
+        });
+
+    match (stream_bitrate, container_estimate) {
+        (Some(stream_bitrate), Some(container_estimate))
+            if stream_uses_metadata
+                && bitrate_difference_is_material(
+                    stream_bitrate.bits_per_second,
+                    container_estimate.bits_per_second,
+                ) =>
+        {
+            Some(container_estimate)
+        }
+        (Some(stream_bitrate), _) => Some(stream_bitrate),
+        (None, container_estimate) => container_estimate,
+    }
+}
+
+fn uses_stream_bitrate_metadata(stream: &ProbeStream) -> bool {
+    stream.bit_rate.is_none()
+        && (stream_tag_value(&stream.tags, &["BPS", "BPS-eng"]).is_some()
+            || (stream_tag_value(&stream.tags, &["NUMBER_OF_BYTES", "NUMBER_OF_BYTES-eng"])
+                .is_some()
+                && stream_tag_value(&stream.tags, &["DURATION", "DURATION-eng"]).is_some()))
+}
+
+fn bitrate_difference_is_material(first: u64, second: u64) -> bool {
+    let larger = first.max(second) as f64;
+    let smaller = first.min(second) as f64;
+    larger > 0.0 && (larger - smaller) / larger > 0.25
 }
 
 fn stream_video_bitrate(stream: &ProbeStream) -> Option<VideoBitrate> {
@@ -369,7 +397,7 @@ mod tests {
             },
         ];
 
-        let bitrate = resolve_video_bitrate(None, Some("5000000"), &audio_streams)
+        let bitrate = resolve_video_bitrate(None, Some("5000000"), &audio_streams, false)
             .expect("total bitrate should produce an estimate");
 
         assert_eq!(bitrate.bits_per_second, 4_424_000);
@@ -385,11 +413,35 @@ mod tests {
             }),
             Some("5000000"),
             &[],
+            false,
         )
         .expect("stream bitrate should be used");
 
         assert_eq!(bitrate.bits_per_second, 4_500_000);
         assert!(!bitrate.is_estimated);
+    }
+
+    #[test]
+    fn ignores_stale_bps_metadata_when_the_container_rate_disagrees() {
+        let bitrate = resolve_video_bitrate(
+            Some(VideoBitrate {
+                bits_per_second: 7_960_000,
+                is_estimated: false,
+            }),
+            Some("2372000"),
+            &[AudioStreamInfo {
+                index: 1,
+                language: Some("jpn".to_owned()),
+                codec: "aac".to_owned(),
+                bitrate: Some(224_000),
+                channels: Some(2),
+            }],
+            true,
+        )
+        .expect("container rate should produce an estimate");
+
+        assert_eq!(bitrate.bits_per_second, 2_148_000);
+        assert!(bitrate.is_estimated);
     }
 
     #[test]

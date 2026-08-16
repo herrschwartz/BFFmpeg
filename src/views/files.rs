@@ -1,9 +1,20 @@
 use crate::controllers::files::FilesController;
 use crate::model::{AppModel, OutputContainer, VideoBitrate};
 use eframe::egui::{self, RichText};
+use std::path::PathBuf;
 use std::time::Duration;
 
-pub fn show(ui: &mut egui::Ui, model: &mut AppModel, controller: &mut FilesController) {
+pub struct PreviewEncodeRequest {
+    pub input_path: PathBuf,
+    pub file_name: String,
+    pub duration_seconds: f64,
+}
+
+pub fn show(
+    ui: &mut egui::Ui,
+    model: &mut AppModel,
+    controller: &mut FilesController,
+) -> Option<PreviewEncodeRequest> {
     controller.poll_media_info(model);
 
     ui.heading("Files");
@@ -41,12 +52,12 @@ pub fn show(ui: &mut egui::Ui, model: &mut AppModel, controller: &mut FilesContr
 
     if let Some(error) = &model.folder_scan_error {
         ui.colored_label(egui::Color32::LIGHT_RED, error);
-        return;
+        return None;
     }
 
     if model.video_files.is_empty() {
         ui.label("There are no supported video files in the current folder.");
-        return;
+        return None;
     }
 
     let mut newly_selected = None;
@@ -87,17 +98,18 @@ pub fn show(ui: &mut egui::Ui, model: &mut AppModel, controller: &mut FilesContr
         ui.ctx().request_repaint_after(Duration::from_millis(50));
     }
 
-    show_selected_file_details(ui, model);
+    show_selected_file_details(ui, model)
 }
 
-fn show_selected_file_details(ui: &mut egui::Ui, model: &AppModel) {
+fn show_selected_file_details(ui: &mut egui::Ui, model: &AppModel) -> Option<PreviewEncodeRequest> {
     let Some(index) = model.selected_video_index else {
-        return;
+        return None;
     };
     let Some(file) = model.video_files.get(index) else {
-        return;
+        return None;
     };
 
+    let mut preview_request = None;
     ui.add_space(16.0);
     ui.group(|ui| {
         ui.heading("Selected file");
@@ -153,7 +165,23 @@ fn show_selected_file_details(ui: &mut egui::Ui, model: &AppModel) {
                 ));
             }
         }
+
+        ui.add_space(10.0);
+        if let Some(duration_seconds) = info.duration_seconds.filter(|duration| *duration > 0.0) {
+            if ui.button("Encode 30-second preview").clicked() {
+                preview_request = Some(PreviewEncodeRequest {
+                    input_path: file.path.clone(),
+                    file_name: file.name.clone(),
+                    duration_seconds,
+                });
+            }
+        } else {
+            ui.add_enabled(false, egui::Button::new("Encode 30-second preview"));
+            ui.label(RichText::new("A usable duration is required for a preview encode.").weak());
+        }
     });
+
+    preview_request
 }
 
 fn info_row(ui: &mut egui::Ui, label: &str, value: Option<String>) {

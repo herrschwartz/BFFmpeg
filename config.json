@@ -1,88 +1,169 @@
 {
-    "default_profile": "h265 nvenc 10bit HDR",
-    "profiles": {
-        "h265 nvenc 10bit HDR": {
-            "ffmpeg_args": [
-                "-map", "0",
-                "-c:v", "hevc_nvenc",
-                "-preset", "p7", 
-                "-cq", "23",
-                "-rc", "vbr",
-                "-multipass", "fullres",
-                "-pix_fmt", "p010le",
-                "-color_primaries", "bt2020",
-                "-color_trc", "smpte2084",
-                "-colorspace", "bt2020nc",
-                "-color_range", "tv",
-                "-c:a", "copy",
-                "-c:s", "copy",
-                "-map_metadata", "0"
-            ]
-        },
-        "h265 nvenc 10bit SDR": {
-            "ffmpeg_args": [
-                "-map", "0",
-                "-c:v", "hevc_nvenc",
-                "-preset", "p7",
-                "-rc", "vbr",
-                "-multipass", "fullres",
-                "-cq", "25",
-                "-pix_fmt", "yuv420p10le",
-                "-c:a", "copy",
-                "-c:s", "copy",
-                "-map_metadata", "0"
-            ]
-        },
-        "h265 10bit": {
-            "ffmpeg_args": [
-                "-map", "0",
-                "-c:v", "libx265",
-                "-preset", "slow",
-                "-crf", "22",
-                "-pix_fmt", "yuv420p10le",
-                "-c:a", "copy",
-                "-c:s", "copy",
-                "-map_metadata", "0"
-            ]
-        },
-        "h265 10bit Animation": {
-            "ffmpeg_args": [
-                "-map", "0", 
-                "-c:v", "libx265",
-                "-preset", "slow",
-                "-tune", "animation",
-                "-crf", "21",
-                "-pix_fmt", "yuv420p10le",
-                "-c:a", "copy",
-                "-c:s", "copy",
-                "-map_metadata", "0"
-            ]
-        },
-        "h265 10bit Low": {
-            "ffmpeg_args": [
-                "-map", "0",
-                "-c:v", "libx265",
-                "-preset", "slow",
-                "-crf", "25",
-                "-pix_fmt", "yuv420p10le",
-                "-c:a", "copy",
-                "-c:s", "copy",
-                "-map_metadata", "0"
-            ]
-        },
-        "h264 8bit Super Juicy": {
-            "ffmpeg_args": [
-                "-map", "0",
-                "-c:v", "libx264",
-                "-preset", "veryslow",
-                "-crf", "16",
-                "-tune", "film",
-                "-profile:v", "high",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "copy",
-                "-c:s", "copy",
-                "-map_metadata", "0"
-            ]
-        }
+  "default_profile": "h265 nvenc 10bit HDR",
+  "profiles": {
+    "h264 8bit Super Juicy": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryslow",
+        "-crf",
+        "16",
+        "-tune",
+        "film",
+        "-profile:v",
+        "high",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "copy",
+        "-c:s",
+        "copy",
+        "-map_metadata",
+        "0"
+      ]
+    },
+    "h264 standard": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "slower",
+        "-crf",
+        "18",
+        "-profile:v",
+        "high",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "copy",
+        "-c:s",
+        "copy",
+        "-map_metadata",
+        "0"
+      ]
+    },
+    "h265 10bit": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "libx265",
+        "-preset",
+        "slow",
+        "-crf",
+        "22",
+        "-pix_fmt",
+        "yuv420p10le",
+        "-c:a",
+        "copy",
+        "-c:s",
+        "copy",
+        "-map_metadata",
+        "0"
+      ]
+    },
+    "h265 10bit Animation": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "libx265",
+        "-preset",
+        "slow",
+        "-tune",
+        "animation",
+        "-crf",
+        "21",
+        "-pix_fmt",
+        "yuv420p10le",
+        "-c:a",
+        "copy",
+        "-c:s",
+        "copy",
+        "-map_metadata",
+        "0"
+      ]
+    },
+    "h265 10bit Low": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "libx265",
+        "-preset",
+        "slow",
+        "-crf",
+        "25",
+        "-pix_fmt",
+        "yuv420p10le",
+        "-c:a",
+        "copy",
+        "-c:s",
+        "copy",
+        "-map_metadata",
+        "0"
+      ]
+    },
+    "h265 nvenc 10bit HDR": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "hevc_nvenc",
+        "-preset",
+        "p7",
+        "-cq",
+        "23",
+        "-rc",
+        "vbr",
+        "-multipass",
+        "fullres",
+        "-pix_fmt",
+        "p010le",
+        "-color_primaries",
+        "bt2020",
+        "-color_trc",
+        "smpte2084",
+        "-colorspace",
+        "bt2020nc",
+        "-color_range",
+        "tv",
+        "-c:a",
+        "copy",
+        "-c:s",
+        "copy",
+        "-map_metadata",
+        "0"
+      ]
+    },
+    "h265 nvenc 10bit SDR": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "hevc_nvenc",
+        "-preset",
+        "p7",
+        "-rc",
+        "vbr",
+        "-multipass",
+        "fullres",
+        "-cq",
+        "25",
+        "-pix_fmt",
+        "yuv420p10le",
+        "-c:a",
+        "copy",
+        "-c:s",
+        "copy",
+        "-map_metadata",
+        "0"
+      ]
     }
+  }
 }

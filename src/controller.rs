@@ -152,16 +152,25 @@ impl AppController {
         };
 
         self.set_current_folder(folder);
+        let mut selected_supported_file = false;
         if let Some(model) = &mut self.model {
             if let Some(index) = model.video_files.iter().position(|file| file.path == path) {
+                for file in &mut model.video_files {
+                    file.selected_for_batch = false;
+                }
+                model.video_files[index].selected_for_batch = true;
                 self.files.select_video_file(model, index);
                 self.status_message = format!("Selected {}", path.display());
+                selected_supported_file = true;
             } else {
                 self.status_message = format!(
                     "Opened {}, but the selected file is not a supported video format.",
                     path.display()
                 );
             }
+        }
+        if selected_supported_file {
+            self.refresh_for_batch_selection();
         }
     }
 
@@ -171,6 +180,10 @@ impl AppController {
             self.status_message = format!("Opened {}", model.current_folder.display());
         }
 
+        self.refresh_for_batch_selection();
+    }
+
+    pub fn refresh_for_batch_selection(&mut self) {
         if let Some(model) = &self.model {
             self.scale.refresh_for_folder(model);
             self.audio.refresh_for_folder(model);

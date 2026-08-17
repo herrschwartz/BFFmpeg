@@ -50,6 +50,7 @@ pub struct VideoFile {
     pub name: String,
     pub path: PathBuf,
     pub size_bytes: u64,
+    pub selected_for_batch: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -155,6 +156,21 @@ impl AppModel {
         self.media_info_error = None;
         self.media_info_loading = false;
     }
+
+    pub fn selected_batch_files(&self) -> Vec<VideoFile> {
+        self.video_files
+            .iter()
+            .filter(|file| file.selected_for_batch)
+            .cloned()
+            .collect()
+    }
+
+    pub fn selected_batch_file_count(&self) -> usize {
+        self.video_files
+            .iter()
+            .filter(|file| file.selected_for_batch)
+            .count()
+    }
 }
 
 fn read_video_files(folder: &std::path::Path) -> (Vec<VideoFile>, Option<String>) {
@@ -177,6 +193,7 @@ fn read_video_files(folder: &std::path::Path) -> (Vec<VideoFile>, Option<String>
                 name: entry.file_name().to_string_lossy().into_owned(),
                 path,
                 size_bytes: metadata.len(),
+                selected_for_batch: true,
             })
         })
         .collect::<Vec<_>>();

@@ -30,7 +30,7 @@ const STALE_TRACK_STATISTIC_TAGS: &[&str] = &[
 /// being attached to newly encoded streams. FFmpeg's Matroska muxer writes fresh
 /// duration tags; statistics that require a second full-file analysis are omitted
 /// instead of publishing values copied from the input.
-pub fn apply_output_metadata_policy(mut arguments: Vec<String>) -> Vec<String> {
+fn apply_output_metadata_policy(mut arguments: Vec<String>) -> Vec<String> {
     for tag in STALE_TRACK_STATISTIC_TAGS {
         arguments.push("-metadata:s".to_owned());
         arguments.push(format!("{tag}="));
@@ -64,6 +64,7 @@ pub struct EncodingProgress {
     pub encoded_seconds: f64,
     pub duration_seconds: Option<f64>,
     pub file_started_at: Instant,
+    pub average_fps: Option<f64>,
 }
 
 pub struct EncodingController {
@@ -92,6 +93,7 @@ enum EncodingUpdate {
         encoded_seconds: f64,
         duration_seconds: Option<f64>,
     },
+    AverageFps(f64),
     Completed {
         kind: EncodingKind,
         total_files: usize,
@@ -203,6 +205,7 @@ impl EncodingController {
                         progress.encoded_seconds = 0.0;
                         progress.duration_seconds = None;
                         progress.file_started_at = Instant::now();
+                        progress.average_fps = None;
                     }
                 }
                 Ok(EncodingUpdate::FileProgress {
@@ -216,6 +219,11 @@ impl EncodingController {
                         progress.overall_progress = overall_progress;
                         progress.encoded_seconds = encoded_seconds;
                         progress.duration_seconds = duration_seconds;
+                    }
+                }
+                Ok(EncodingUpdate::AverageFps(average_fps)) => {
+                    if let Some(progress) = &mut self.progress {
+                        progress.average_fps = Some(average_fps);
                     }
                 }
                 Ok(EncodingUpdate::Completed { kind, total_files }) => {
@@ -250,6 +258,7 @@ impl EncodingController {
         if self.is_running() {
             return Err("An encode is already in progress.".to_owned());
         }
+        let ffmpeg_args = apply_output_metadata_policy(ffmpeg_args);
         let first_job = jobs
             .first()
             .ok_or_else(|| "There are no video files to encode.".to_owned())?;
@@ -265,6 +274,7 @@ impl EncodingController {
             encoded_seconds: 0.0,
             duration_seconds: None,
             file_started_at: Instant::now(),
+            average_fps: None,
         });
         self.update_receiver = Some(receiver);
 
@@ -388,6 +398,9 @@ fn encode_job(
     let mut pending_progress = Vec::new();
     let mut last_file_progress = 0.0_f32;
     let mut report_progress = |line: &str| {
+        if let Some(average_fps) = parse_progress_fps(line) {
+            let _ = sender.send(EncodingUpdate::AverageFps(average_fps));
+        }
         let Some((file_progress, encoded_seconds)) =
             progress_position(line, expected_duration, expected_frames)
         else {
@@ -701,6 +714,11 @@ fn parse_progress_frame(line: &str) -> Option<u64> {
     line.strip_prefix("frame=")?.trim().parse::<u64>().ok()
 }
 
+fn parse_progress_fps(line: &str) -> Option<f64> {
+    let fps = line.strip_prefix("fps=")?.trim().parse::<f64>().ok()?;
+    (fps.is_finite() && fps >= 0.0).then_some(fps)
+}
+
 fn progress_position(
     line: &str,
     expected_duration: Option<f64>,
@@ -826,8 +844,8 @@ fn parse_timecode(value: &str) -> Option<f64> {
 mod tests {
     use super::{
         ProgressFile, apply_output_metadata_policy, batch_output_path, command_without_window,
-        parse_duration_probe, parse_progress_frame, parse_progress_probe, parse_progress_seconds,
-        preview_output_path, progress_position, read_new_progress_records,
+        parse_duration_probe, parse_progress_fps, parse_progress_frame, parse_progress_probe,
+        parse_progress_seconds, preview_output_path, progress_position, read_new_progress_records,
     };
     use std::fs::{self, OpenOptions};
     use std::io::Write;
@@ -850,6 +868,7 @@ mod tests {
             Some(5.25)
         );
         assert_eq!(parse_progress_frame("frame=34406"), Some(34_406));
+        assert_eq!(parse_progress_fps("fps=707.47"), Some(707.47));
     }
 
     #[test]

@@ -10,11 +10,18 @@ pub struct PreviewEncodeRequest {
     pub duration_seconds: f64,
 }
 
+#[derive(Default)]
+pub struct FilesViewActions {
+    pub preview_encode_request: Option<PreviewEncodeRequest>,
+    pub batch_selection_changed: bool,
+}
+
 pub fn show(
     ui: &mut egui::Ui,
     model: &mut AppModel,
     controller: &mut FilesController,
-) -> Option<PreviewEncodeRequest> {
+) -> FilesViewActions {
+    let mut actions = FilesViewActions::default();
     controller.poll_media_info(model);
 
     ui.heading("Files");
@@ -47,17 +54,24 @@ pub fn show(
     ui.add_space(16.0);
     ui.horizontal(|ui| {
         ui.heading("Video files");
-        ui.label(RichText::new(format!("({})", model.video_files.len())).weak());
+        ui.label(
+            RichText::new(format!(
+                "({} of {} selected)",
+                model.selected_batch_file_count(),
+                model.video_files.len()
+            ))
+            .weak(),
+        );
     });
 
     if let Some(error) = &model.folder_scan_error {
         ui.colored_label(egui::Color32::LIGHT_RED, error);
-        return None;
+        return actions;
     }
 
     if model.video_files.is_empty() {
         ui.label("There are no supported video files in the current folder.");
-        return None;
+        return actions;
     }
 
     let mut newly_selected = None;
@@ -75,9 +89,10 @@ pub fn show(
                 .show(ui, |ui| {
                     ui.strong("File");
                     ui.strong("Size");
+                    ui.strong("Batch");
                     ui.end_row();
 
-                    for (index, file) in model.video_files.iter().enumerate() {
+                    for (index, file) in model.video_files.iter_mut().enumerate() {
                         if ui
                             .selectable_label(model.selected_video_index == Some(index), &file.name)
                             .clicked()
@@ -85,6 +100,13 @@ pub fn show(
                             newly_selected = Some(index);
                         }
                         ui.label(format_file_size(file.size_bytes));
+                        if ui
+                            .checkbox(&mut file.selected_for_batch, "")
+                            .on_hover_text("Include this file in the batch encode")
+                            .changed()
+                        {
+                            actions.batch_selection_changed = true;
+                        }
                         ui.end_row();
                     }
                 });
@@ -98,7 +120,8 @@ pub fn show(
         ui.ctx().request_repaint_after(Duration::from_millis(50));
     }
 
-    show_selected_file_details(ui, model)
+    actions.preview_encode_request = show_selected_file_details(ui, model);
+    actions
 }
 
 fn show_selected_file_details(ui: &mut egui::Ui, model: &AppModel) -> Option<PreviewEncodeRequest> {

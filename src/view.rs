@@ -120,8 +120,7 @@ impl EncoderApp {
                 .model
                 .as_ref()
                 .ok_or_else(|| "No folder is open.".to_owned())?
-                .video_files
-                .clone();
+                .selected_batch_files();
             self.controller.encoding.start_batch(
                 video_files,
                 output_directory,
@@ -192,6 +191,11 @@ impl EncoderApp {
                             ))
                             .weak(),
                         );
+                        if let Some(average_fps) = progress.average_fps {
+                            ui.label(
+                                RichText::new(format!("Average FPS: {average_fps:.1}")).weak(),
+                            );
+                        }
                         ui.add_space(8.0);
                         ui.label("Overall batch progress");
                         ui.add(
@@ -416,7 +420,7 @@ impl eframe::App for EncoderApp {
             .controller
             .model
             .as_ref()
-            .is_some_and(|model| !model.video_files.is_empty());
+            .is_some_and(|model| model.selected_batch_file_count() > 0);
 
         let mut open_save_preset_dialog = false;
         let mut open_delete_preset_dialog = false;
@@ -473,6 +477,7 @@ impl eframe::App for EncoderApp {
         }
 
         let mut preview_encode_request = None;
+        let mut batch_selection_changed = false;
         egui::Frame::central_panel(ui.style()).show(ui, |ui| {
             let selected_profile_data = self
                 .controller
@@ -525,7 +530,9 @@ impl eframe::App for EncoderApp {
                         if let Some(model) = model {
                             match self.active_tab {
                                 SettingsTab::Files => {
-                                    preview_encode_request = views::files::show(ui, model, files)
+                                    let actions = views::files::show(ui, model, files);
+                                    preview_encode_request = actions.preview_encode_request;
+                                    batch_selection_changed = actions.batch_selection_changed;
                                 }
                                 SettingsTab::Video => views::video::show(ui, video),
                                 SettingsTab::Scale => views::scale::show(ui, model, scale),
@@ -547,6 +554,9 @@ impl eframe::App for EncoderApp {
         self.show_advanced_parameter_dialog(ui.ctx());
         self.show_save_preset_dialog(ui.ctx());
         self.show_delete_preset_dialog(ui.ctx());
+        if batch_selection_changed {
+            self.controller.refresh_for_batch_selection();
+        }
         if let Some(request) = preview_encode_request {
             self.start_preview_encode(request);
         }
@@ -646,7 +656,7 @@ fn effective_command_arguments(
     for parameter in advanced_parameters {
         arguments.extend(parameter.arguments.iter().cloned());
     }
-    crate::controllers::encoding::apply_output_metadata_policy(arguments)
+    arguments
 }
 
 fn format_media_time(seconds: f64) -> String {

@@ -158,7 +158,11 @@ impl ScaleController {
     }
 
     fn start_scale_scan(&mut self, video_files: &[VideoFile]) {
-        let files = video_files.to_vec();
+        let files = video_files
+            .iter()
+            .filter(|file| file.selected_for_batch)
+            .cloned()
+            .collect::<Vec<_>>();
         let total = files.len();
         let (sender, receiver) = mpsc::channel();
         self.selected_resolution = None;

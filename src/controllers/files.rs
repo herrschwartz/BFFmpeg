@@ -127,7 +127,7 @@ fn probe_media_file(path: &Path) -> Result<MediaInfo, String> {
                 .codec_name
                 .clone()
                 .unwrap_or_else(|| "Unknown codec".to_owned()),
-            bitrate: stream.bit_rate.as_deref().and_then(parse_bitrate),
+            bitrate: stream_audio_bitrate(stream),
             channels: stream.channels,
         })
         .collect::<Vec<_>>();
@@ -274,6 +274,24 @@ fn stream_video_bitrate(stream: &ProbeStream) -> Option<VideoBitrate> {
     })
 }
 
+fn stream_audio_bitrate(stream: &ProbeStream) -> Option<u64> {
+    if let Some(bits_per_second) = stream.bit_rate.as_deref().and_then(parse_bitrate) {
+        return Some(bits_per_second);
+    }
+
+    if let Some(bits_per_second) =
+        stream_tag_value(&stream.tags, &["BPS", "BPS-eng"]).and_then(parse_bitrate)
+    {
+        return Some(bits_per_second);
+    }
+
+    let bytes = stream_tag_value(&stream.tags, &["NUMBER_OF_BYTES", "NUMBER_OF_BYTES-eng"])
+        .and_then(|value| value.parse::<u64>().ok())?;
+    let duration_seconds = stream_tag_value(&stream.tags, &["DURATION", "DURATION-eng"])
+        .and_then(parse_tag_duration)?;
+    Some(((bytes as f64 * 8.0) / duration_seconds) as u64)
+}
+
 fn dynamic_range(stream: &ProbeStream) -> String {
     match stream.color_transfer.as_deref() {
         Some("smpte2084") => "HDR (PQ)".to_owned(),
@@ -374,7 +392,7 @@ struct ProbeStream {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProbeStream, resolve_video_bitrate, stream_video_bitrate};
+    use super::{ProbeStream, resolve_video_bitrate, stream_audio_bitrate, stream_video_bitrate};
     use crate::model::{AudioStreamInfo, VideoBitrate};
     use std::collections::BTreeMap;
 
@@ -489,5 +507,28 @@ mod tests {
 
         assert_eq!(bitrate.bits_per_second, 10_509_649);
         assert!(bitrate.is_estimated);
+    }
+
+    #[test]
+    fn reads_dts_hd_ma_bitrate_from_matroska_bps_metadata() {
+        let stream = ProbeStream {
+            index: Some(1),
+            codec_type: Some("audio".to_owned()),
+            codec_name: Some("dts".to_owned()),
+            bit_rate: None,
+            channels: Some(6),
+            width: None,
+            height: None,
+            sample_aspect_ratio: None,
+            color_transfer: None,
+            color_primaries: None,
+            tags: BTreeMap::from([
+                ("BPS".to_owned(), "1950789".to_owned()),
+                ("DURATION-eng".to_owned(), "02:00:12.214000000".to_owned()),
+                ("NUMBER_OF_BYTES".to_owned(), "1758689364".to_owned()),
+            ]),
+        };
+
+        assert_eq!(stream_audio_bitrate(&stream), Some(1_950_789));
     }
 }

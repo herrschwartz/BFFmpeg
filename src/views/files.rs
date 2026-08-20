@@ -1,5 +1,5 @@
 use crate::controllers::files::FilesController;
-use crate::model::{AppModel, OutputContainer, VideoBitrate};
+use crate::model::{AppModel, OutputContainer, VideoBitrate, VideoDimensions};
 use eframe::egui::{self, RichText};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -154,6 +154,11 @@ fn show_selected_file_details(ui: &mut egui::Ui, model: &AppModel) -> Option<Pre
         };
 
         info_row(ui, "Duration", info.duration_seconds.map(format_duration));
+        info_row(
+            ui,
+            "Resolution",
+            info.video_dimensions.map(format_video_dimensions),
+        );
         info_row(ui, "Video codec", info.video_codec.clone());
         info_row(ui, "Dynamic range", info.dynamic_range.clone());
         info_row(
@@ -242,6 +247,10 @@ fn format_video_bitrate(bitrate: &VideoBitrate) -> String {
     } else {
         bitrate_label
     }
+}
+
+fn format_video_dimensions(dimensions: VideoDimensions) -> String {
+    format!("{} × {}", dimensions.width, dimensions.height)
 }
 
 fn format_file_size(bytes: u64) -> String {

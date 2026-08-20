@@ -9,6 +9,19 @@ pub fn show(ui: &mut egui::Ui, model: &AppModel, controller: &mut ScaleControlle
     controller.poll_scan();
 
     ui.heading("Scale");
+    if let Some(index) = model.selected_video_index
+        && let Some(file) = model.video_files.get(index)
+        && let Some(dimensions) = model
+            .selected_media_info
+            .as_ref()
+            .and_then(|info| info.video_dimensions)
+    {
+        ui.label(format!(
+            "Selected source: {} — {} × {}",
+            file.name, dimensions.width, dimensions.height
+        ));
+        ui.add_space(6.0);
+    }
     let response = ui.checkbox(
         &mut controller.retain_current_resolution,
         "Retain Current Resolution",
@@ -64,6 +77,11 @@ fn show_scan_result(ui: &mut egui::Ui, controller: &mut ScaleController, result:
 
     if let Some(aspect_ratio) = result.common_aspect_ratio {
         show_common_aspect_ratio(ui, controller, &aspect_ratio);
+        ui.add_space(12.0);
+        ui.group(|ui| {
+            ui.heading("Current source resolutions");
+            show_scanned_dimensions(ui, &result.files);
+        });
     } else {
         ui.group(|ui| {
             ui.heading("No common aspect ratio");

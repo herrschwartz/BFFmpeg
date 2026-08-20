@@ -1,7 +1,37 @@
 {
   "default_profile": "h265 nvenc 10bit HDR",
   "profiles": {
-    "h264 8bit Super Juicy": {
+    "AV1 10bit WebM Compact": {
+      "ffmpeg_args": [
+        "-map",
+        "0",
+        "-c:v",
+        "libsvtav1",
+        "-preset",
+        "6",
+        "-crf",
+        "32",
+        "-pix_fmt",
+        "yuv420p10le",
+        "-g",
+        "240",
+        "-svtav1-params",
+        "tune=0",
+        "-c:a",
+        "libopus",
+        "-b:a",
+        "128k",
+        "-vbr",
+        "on",
+        "-application",
+        "audio",
+        "-c:s",
+        "webvtt",
+        "-map_metadata",
+        "0"
+      ]
+    },
+    "h264 8bit Film": {
       "ffmpeg_args": [
         "-map",
         "0",

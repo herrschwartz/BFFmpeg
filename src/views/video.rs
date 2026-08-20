@@ -5,7 +5,7 @@ pub fn show(ui: &mut egui::Ui, controller: &mut VideoController) {
     ui.heading("Video");
 
     let Some(settings) = controller.settings_mut() else {
-        ui.label("The selected preset does not use a supported H.264 or H.265 encoder yet.");
+        ui.label("The selected preset does not use a supported H.264, H.265, or AV1 encoder yet.");
         return;
     };
 
@@ -15,12 +15,13 @@ pub fn show(ui: &mut egui::Ui, controller: &mut VideoController) {
 
         let quality_label = settings.quality_label();
         let quality_range = settings.quality_range();
+        let quality_max = *quality_range.end();
         ui.scope(|ui| {
             ui.spacing_mut().slider_width = 360.0;
             ui.add(
                 egui::Slider::new(&mut settings.quality, quality_range)
                     .text(quality_label)
-                    .suffix(" / 51"),
+                    .suffix(format!(" / {quality_max}")),
             );
         });
         ui.label(
@@ -39,9 +40,9 @@ pub fn show(ui: &mut egui::Ui, controller: &mut VideoController) {
             );
         });
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Faster").weak());
+            ui.label(RichText::new(settings.speed_left_label()).weak());
             ui.label(RichText::new(settings.speed_label()).strong());
-            ui.label(RichText::new("Slower / higher quality").weak());
+            ui.label(RichText::new(settings.speed_right_label()).weak());
         });
 
         if settings.supports_tunes() {
